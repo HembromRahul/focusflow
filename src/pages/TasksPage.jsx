@@ -1,22 +1,25 @@
 import { useState, useEffect } from "react";
 import { useTasks } from "../context/TaskContext";
 import { getTimeRemaining } from "../utils/timeUtils";
+import { Plus, Trash2, Check } from "lucide-react";
 
-function TasksPage() {
- 
-const { tasks, addTask, completeTask, updateTask } = useTasks();
+function TasksPage({ searchTerm }) {
+  const { tasks, addTask, deleteTask, updateTask } = useTasks();
 
+  const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState("");
-  const [deadline, setDeadline] = useState("");
   const [description, setDescription] = useState("");
-
-  const [editingTitleId, setEditingTitleId] = useState(null);
-  const [editingDescriptionId, setEditingDescriptionId] = useState(null);
-  const [editData, setEditData] = useState({});
-
+  const [deadline, setDeadline] = useState("");
   const [now, setNow] = useState(new Date());
 
-  // Refresh countdown every minute
+  const [reminderMinutes, setReminderMinutes] = useState(() => {
+    const saved = localStorage.getItem("flow_reminder_minutes");
+    return saved ? Number(saved) : 10;
+  });
+
+  const [notifiedTasks, setNotifiedTasks] = useState({});
+
+  // ⏱ Update every minute
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date());
@@ -24,85 +27,134 @@ const { tasks, addTask, completeTask, updateTask } = useTasks();
     return () => clearInterval(interval);
   }, []);
 
+  // 🔔 Ask permission once
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // 💾 Save reminder preference
+  useEffect(() => {
+    localStorage.setItem("flow_reminder_minutes", reminderMinutes);
+  }, [reminderMinutes]);
+
+  const playSound = () => {
+    const audio = new Audio(
+      "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
+    );
+    audio.play();
+  };
+
+  const vibrate = () => {
+    if ("vibrate" in navigator) {
+      navigator.vibrate([200, 100, 200]);
+    }
+  };
+
+  // 🔔 Notification engine
+  useEffect(() => {
+    if (!("Notification" in window)) return;
+
+    tasks.forEach((task) => {
+      if (!task.deadline || task.status === "completed") return;
+
+      const nowTime = new Date();
+      const deadlineTime = new Date(task.deadline);
+      const diff = deadlineTime - nowTime;
+      const minutesLeft = Math.floor(diff / 60000);
+
+      const alreadyReminded = notifiedTasks[task.id]?.reminder;
+      const alreadyOverdue = notifiedTasks[task.id]?.overdue;
+
+      if (
+        minutesLeft === reminderMinutes &&
+        !alreadyReminded
+      ) {
+        new Notification("Reminder", {
+          body: `"${task.title}" is due in ${reminderMinutes} minutes.`,
+        });
+        playSound();
+        vibrate();
+
+        setNotifiedTasks((prev) => ({
+          ...prev,
+          [task.id]: { ...prev[task.id], reminder: true },
+        }));
+      }
+
+      if (minutesLeft < 0 && !alreadyOverdue) {
+        new Notification("Overdue", {
+          body: `"${task.title}" is now overdue.`,
+        });
+        playSound();
+        vibrate();
+
+        setNotifiedTasks((prev) => ({
+          ...prev,
+          [task.id]: { ...prev[task.id], overdue: true },
+        }));
+      }
+    });
+  }, [now, tasks, reminderMinutes, notifiedTasks]);
+
   const handleAdd = () => {
     if (!title.trim()) return;
     addTask(title, deadline, description);
     setTitle("");
-    setDeadline("");
     setDescription("");
+    setDeadline("");
   };
 
+  const toggleComplete = (task) => {
+    updateTask(task.id, {
+      status: task.status === "completed" ? "active" : "completed",
+      completedAt:
+        task.status === "completed" ? null : new Date().toISOString(),
+    });
+  };
+
+  // 🔥 SMART AUTO SORT
+  const filteredTasks = tasks
+    .filter((task) =>
+      task.title.toLowerCase().includes(searchTerm?.toLowerCase() || "") ||
+      (task.description &&
+        task.description
+          .toLowerCase()
+          .includes(searchTerm?.toLowerCase() || ""))
+    )
+    .sort((a, b) => {
+      if (a.status === "completed" && b.status !== "completed") return 1;
+      if (b.status === "completed" && a.status !== "completed") return -1;
+
+      const nowTime = new Date();
+
+      const getPriority = (task) => {
+        if (task.status === "completed") return 5;
+        if (!task.deadline) return 4;
+
+        const diff = new Date(task.deadline) - nowTime;
+        const minutes = Math.floor(diff / 60000);
+
+        if (minutes < 0) return 1;        // Overdue
+        if (minutes <= 1440) return 2;    // Due within 24h
+        return 3;                         // Future active
+      };
+
+      return getPriority(a) - getPriority(b);
+    });
+
   return (
-    <div>
-      <h2>Tasks</h2>
-
-      {/* Add Task */}
-      <div style={{ marginBottom: "20px" }}>
-        <input
-          type="text"
-          placeholder="Enter task..."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-
-        <textarea
-          placeholder="Add details (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          style={{
-            display: "block",
-            marginTop: "8px",
-            width: "100%",
-            backgroundColor: "#1a1a1a",
-            border: "1px solid #333",
-            color: "#d1d5db",
-            padding: "6px",
-            borderRadius: "4px"
-          }}
-        />
-
-        <input
-          type="datetime-local"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-          style={{ marginTop: "8px" }}
-        />
-
-        <button onClick={handleAdd} style={{ marginTop: "8px" }}>
-          Add
-        </button>
-      </div>
+    <div className="space-y-6 pt-20">
 
       {/* Task List */}
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {tasks
-  .filter((task) => task.status === "active")
-  .sort((a, b) => {
-    const now = new Date();
-
-    // No deadline = lowest priority
-    if (!a.deadline && !b.deadline) return 0;
-    if (!a.deadline) return 1;
-    if (!b.deadline) return -1;
-
-    const aTime = new Date(a.deadline) - now;
-    const bTime = new Date(b.deadline) - now;
-
-    // Overdue first
-    if (aTime < 0 && bTime >= 0) return -1;
-    if (bTime < 0 && aTime >= 0) return 1;
-
-    // Otherwise sort by nearest deadline
-    return aTime - bTime;
-  })
-  .map((task) => {
-
-
-          let titleColor = "#d1d5db";
-          let countdownColor = "#9ca3af";
+      <div className="space-y-4">
+        {filteredTasks.map((task) => {
+          let titleColor = "text-zinc-200";
+          let countdownColor = "text-zinc-400";
           let countdownText = "";
 
-          if (task.deadline) {
+          if (task.deadline && task.status !== "completed") {
             const { status, hours, minutes, urgencyLevel } =
               getTimeRemaining(task.deadline);
 
@@ -112,197 +164,153 @@ const { tasks, addTask, completeTask, updateTask } = useTasks();
                 : `Due in ${hours}h ${minutes}m`;
 
             if (status === "overdue") {
-              titleColor = "#ef4444";
-              countdownColor = "#ef4444";
+              titleColor = "text-red-500";
+              countdownColor = "text-red-500";
             } else if (urgencyLevel === 3) {
-              titleColor = "#ff6b6b";
-              countdownColor = "#ff6b6b";
+              titleColor = "text-red-400";
+              countdownColor = "text-red-400";
             } else if (urgencyLevel === 2) {
-              titleColor = "#fbbf24";
-              countdownColor = "#fbbf24";
+              titleColor = "text-yellow-400";
+              countdownColor = "text-yellow-400";
             }
           }
 
           return (
-            <li key={task.id} style={{ marginBottom: "28px" }}>
+            <div
+              key={task.id}
+              className="bg-zinc-900 p-5 rounded-xl border border-zinc-800 hover:bg-zinc-800 transition-all duration-200 flex justify-between items-start"
+            >
+              <div className="flex items-start gap-4 w-full">
 
-              {/* TITLE */}
-              {editingTitleId === task.id ? (
-                <div
-                  tabIndex={0}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget)) {
-                      updateTask(task.id, editData);
-                      setEditingTitleId(null);
-                      setEditData({});
-                    }
-                  }}
-                  style={{
-                    marginTop: "6px",
-                    padding: "10px",
-                    backgroundColor: "#151515",
-                    borderRadius: "6px"
-                  }}
+                <button
+                  onClick={() => toggleComplete(task)}
+                  className={`mt-1 w-5 h-5 rounded border flex items-center justify-center transition ${
+                    task.status === "completed"
+                      ? "bg-green-500 border-green-500"
+                      : "border-zinc-600 hover:border-white"
+                  }`}
                 >
-                  {/* Title Input */}
-                  <input
-                    autoFocus
-                    type="text"
-                    value={editData.title ?? task.title}
-                    onChange={(e) =>
-                      setEditData((prev) => ({
-                        ...prev,
-                        title: e.target.value
-                      }))
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "transparent",
-                      color: "#d1d5db",
-                      border: "none",
-                      outline: "none",
-                      fontWeight: "600",
-                      fontSize: "16px"
-                    }}
-                  />
+                  {task.status === "completed" && (
+                    <Check size={14} className="text-black" />
+                  )}
+                </button>
 
-                  {/* Deadline Input */}
-                  <input
-                    type="datetime-local"
-                    value={
-                      editData.deadline ??
-                      (task.deadline
-                        ? new Date(task.deadline)
-                            .toISOString()
-                            .slice(0, 16)
-                        : "")
-                    }
-                    onChange={(e) =>
-                      setEditData((prev) => ({
-                        ...prev,
-                        deadline: e.target.value
-                      }))
-                    }
-                    style={{
-                      marginTop: "6px",
-                      backgroundColor: "transparent",
-                      color: "#9ca3af",
-                      border: "none",
-                      outline: "none"
-                    }}
-                  />
-
-                  {/* Created Date */}
+                <div className="flex-1">
                   <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "8px"
-                    }}
+                    className={`text-lg font-semibold transition-all duration-200 ${
+                      task.status === "completed"
+                        ? "line-through text-zinc-500"
+                        : titleColor
+                    }`}
                   >
-                    Created:
+                    {task.title}
                   </div>
 
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#9ca3af"
-                    }}
-                  >
-                    {task.createdAt
-                      ? new Date(task.createdAt).toLocaleString()
-                      : "—"}
-                  </div>
-                </div>
-              ) : (
-                <div
-                  onClick={() => {
-                    setEditingTitleId(task.id);
-                    setEditData(task);
-                  }}
-                  style={{
-                    fontWeight: "600",
-                    color: titleColor,
-                    cursor: "pointer"
-                  }}
-                >
-                  {task.title}
-                </div>
-              )}
+                  {task.description && (
+                    <div
+                      className={`text-sm mt-1 transition-all duration-200 ${
+                        task.status === "completed"
+                          ? "text-zinc-600"
+                          : "text-zinc-400"
+                      }`}
+                    >
+                      {task.description}
+                    </div>
+                  )}
 
-              {/* DESCRIPTION */}
-              {editingDescriptionId === task.id ? (
-                <textarea
-                  autoFocus
-                  value={editData.description ?? task.description ?? ""}
-                  onChange={(e) =>
-                    setEditData((prev) => ({
-                      ...prev,
-                      description: e.target.value
-                    }))
-                  }
-                  onBlur={() => {
-                    updateTask(task.id, editData);
-                    setEditingDescriptionId(null);
-                    setEditData({});
-                  }}
-                  style={{
-                    marginTop: "4px",
-                    width: "100%",
-                    backgroundColor: "transparent",
-                    color: "#9ca3af",
-                    border: "none",
-                    outline: "none",
-                    resize: "none",
-                    padding: "0",
-                    fontSize: "13px",
-                    minHeight: "18px"
-                  }}
-                />
-              ) : (
-                task.description && (
-                  <div
-                    onClick={() => {
-                      setEditingDescriptionId(task.id);
-                      setEditData(task);
-                    }}
-                    style={{
-                      fontSize: "13px",
-                      color: "#9ca3af",
-                      marginTop: "4px",
-                      cursor: "text"
-                    }}
-                  >
-                    {task.description}
-                  </div>
-                )
-              )}
-
-              {/* Countdown */}
-              {task.deadline && (
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: countdownColor,
-                    marginTop: "4px"
-                  }}
-                >
-                  {countdownText}
+                  {task.deadline && task.status !== "completed" && (
+                    <div className={`text-sm mt-2 ${countdownColor}`}>
+                      {countdownText}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               <button
-  onClick={() => completeTask(task.id)}
-  style={{ marginTop: "6px", color: "#22c55e" }}
->
-  Complete
-</button>
-
-
-            </li>
+                onClick={() => deleteTask(task.id)}
+                className="text-zinc-500 hover:text-red-500 transition"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
           );
         })}
-      </ul>
+      </div>
+
+      {/* Floating Add Button */}
+      <button
+        onClick={() => setShowModal(true)}
+        className="fixed bottom-6 right-6 w-12 h-12 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center shadow-lg hover:shadow-2xl hover:-translate-y-1 hover:ring-2 hover:ring-white/30 hover:bg-zinc-800 transition-all duration-200"
+      >
+        <Plus size={20} className="text-zinc-300 hover:text-white transition" />
+      </button>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-md space-y-4 border border-zinc-800">
+
+            <h2 className="text-xl font-semibold text-zinc-200">
+              New Task
+            </h2>
+
+            <input
+              type="text"
+              placeholder="Task title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2"
+            />
+
+            <textarea
+              placeholder="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2"
+            />
+
+            <input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2"
+            />
+
+            <select
+              value={reminderMinutes}
+              onChange={(e) =>
+                setReminderMinutes(Number(e.target.value))
+              }
+              className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2"
+            >
+              <option value={5}>Remind 5 minutes before</option>
+              <option value={10}>Remind 10 minutes before</option>
+              <option value={15}>Remind 15 minutes before</option>
+              <option value={30}>Remind 30 minutes before</option>
+            </select>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-zinc-400 hover:text-white transition"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={() => {
+                  handleAdd();
+                  setShowModal(false);
+                }}
+                className="bg-white text-black px-4 py-2 rounded-lg hover:scale-105 transition-all duration-200"
+              >
+                Save
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
