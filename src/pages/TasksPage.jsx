@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTasks } from "../context/TaskContext";
 import { getTimeRemaining } from "../utils/timeUtils";
 import { Plus, Trash2, Check } from "lucide-react";
@@ -15,6 +15,15 @@ function TasksPage({ searchTerm }) {
   const [editingDescId, setEditingDescId] = useState(null);
   const [editingDeadlineId, setEditingDeadlineId] = useState(null);
   const [editValue, setEditValue] = useState("");
+
+  // Force re-render every minute so colors update
+  const [, setNow] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAdd = () => {
     if (!title.trim()) return;
@@ -42,28 +51,41 @@ function TasksPage({ searchTerm }) {
     <div className="space-y-6">
 
       {filteredTasks.map((task) => {
-
         const isCompleted = task.status === "completed";
 
+        let titleColor = "text-zinc-200";
+        let descColor = "text-zinc-400";
+        let countdownColor = "text-zinc-500";
         let countdownText = "";
 
         if (task.deadline && !isCompleted) {
-          const { status, hours, minutes } =
+          const { status, hours, minutes, urgencyLevel } =
             getTimeRemaining(task.deadline);
 
           countdownText =
             status === "overdue"
               ? `Overdue by ${hours}h ${minutes}m`
               : `Due in ${hours}h ${minutes}m`;
+
+          if (status === "overdue") {
+            titleColor = "text-red-500";
+            descColor = "text-red-400";
+            countdownColor = "text-red-500";
+          } else if (urgencyLevel === 3) {
+            titleColor = "text-red-400";
+            countdownColor = "text-red-400";
+          } else if (urgencyLevel === 2) {
+            titleColor = "text-yellow-400";
+            countdownColor = "text-yellow-400";
+          }
         }
 
         return (
           <div
             key={task.id}
-            className="bg-zinc-900 p-5 rounded-xl border border-zinc-800 space-y-2"
+            className="bg-zinc-900 p-5 rounded-xl border border-zinc-800"
           >
-
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 w-full">
 
               {/* Checkbox */}
               <button
@@ -79,7 +101,7 @@ function TasksPage({ searchTerm }) {
                 )}
               </button>
 
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1">
 
                 {/* TITLE */}
                 {editingTitleId === task.id ? (
@@ -102,7 +124,7 @@ function TasksPage({ searchTerm }) {
                     className={`text-lg font-semibold cursor-pointer ${
                       isCompleted
                         ? "line-through text-zinc-500"
-                        : "text-zinc-200"
+                        : titleColor
                     }`}
                   >
                     {task.title}
@@ -119,7 +141,7 @@ function TasksPage({ searchTerm }) {
                       updateTask(task.id, { description: editValue });
                       setEditingDescId(null);
                     }}
-                    className="w-full bg-transparent text-zinc-400 outline-none resize-none"
+                    className="w-full bg-transparent outline-none resize-none"
                   />
                 ) : (
                   task.description && (
@@ -131,7 +153,7 @@ function TasksPage({ searchTerm }) {
                       className={`cursor-text ${
                         isCompleted
                           ? "line-through text-zinc-600"
-                          : "text-zinc-400"
+                          : descColor
                       }`}
                     >
                       {task.description}
@@ -156,7 +178,7 @@ function TasksPage({ searchTerm }) {
                       updateTask(task.id, { deadline: editValue });
                       setEditingDeadlineId(null);
                     }}
-                    className="bg-transparent text-zinc-400 outline-none"
+                    className="bg-transparent outline-none"
                   />
                 ) : (
                   countdownText && (
@@ -165,7 +187,7 @@ function TasksPage({ searchTerm }) {
                         setEditingDeadlineId(task.id);
                         setEditValue(task.deadline);
                       }}
-                      className="text-sm text-zinc-500 cursor-pointer"
+                      className={`text-sm cursor-pointer ${countdownColor}`}
                     >
                       {countdownText}
                     </div>
@@ -195,11 +217,10 @@ function TasksPage({ searchTerm }) {
         <Plus size={20} className="text-zinc-300" />
       </button>
 
-      {/* Add Modal */}
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center">
           <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-md space-y-4 border border-zinc-800">
-
             <input
               type="text"
               placeholder="Task title"
@@ -207,21 +228,18 @@ function TasksPage({ searchTerm }) {
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2 outline-none"
             />
-
             <textarea
               placeholder="Description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2 outline-none"
             />
-
             <input
               type="datetime-local"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               className="w-full bg-zinc-800 text-zinc-200 rounded-lg px-4 py-2 outline-none"
             />
-
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowModal(false)}
@@ -229,7 +247,6 @@ function TasksPage({ searchTerm }) {
               >
                 Cancel
               </button>
-
               <button
                 onClick={() => {
                   handleAdd();
@@ -240,7 +257,6 @@ function TasksPage({ searchTerm }) {
                 Save
               </button>
             </div>
-
           </div>
         </div>
       )}
