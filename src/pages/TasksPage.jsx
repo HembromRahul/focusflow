@@ -16,7 +16,7 @@ function TasksPage({ searchTerm }) {
   const [editingDeadlineId, setEditingDeadlineId] = useState(null);
   const [editValue, setEditValue] = useState("");
 
-  // Force re-render every minute so colors update
+  // Re-render every minute for countdown update
   const [, setNow] = useState(Date.now());
   useEffect(() => {
     const interval = setInterval(() => {
@@ -161,18 +161,12 @@ function TasksPage({ searchTerm }) {
                   )
                 )}
 
-                {/* DEADLINE */}
+                {/* DEADLINE (NO UTC CONVERSION) */}
                 {editingDeadlineId === task.id ? (
                   <input
                     type="datetime-local"
                     autoFocus
-                    value={
-                      editValue
-                        ? new Date(editValue)
-                            .toISOString()
-                            .slice(0, 16)
-                        : ""
-                    }
+                    value={editValue || ""}
                     onChange={(e) => setEditValue(e.target.value)}
                     onBlur={() => {
                       updateTask(task.id, { deadline: editValue });
@@ -187,7 +181,7 @@ function TasksPage({ searchTerm }) {
                         setEditingDeadlineId(task.id);
                         setEditValue(task.deadline);
                       }}
-                      className={`text-sm cursor-pointer ${countdownColor}`}
+                      className={`text-sm ${countdownColor} cursor-pointer mt-1 block`}
                     >
                       {countdownText}
                     </div>
@@ -217,7 +211,7 @@ function TasksPage({ searchTerm }) {
         <Plus size={20} className="text-zinc-300" />
       </button>
 
-      {/* Modal */}
+      {/* Add Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center">
           <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-md space-y-4 border border-zinc-800">
