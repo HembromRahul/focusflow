@@ -7,10 +7,12 @@ function App() {
   return (
     <BrowserRouter>
       <Layout>
-        <Routes>
-          <Route path="/" element={<TasksPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-        </Routes>
+        {({ searchTerm }) => (
+          <Routes>
+            <Route path="/" element={<TasksPage searchTerm={searchTerm} />} />
+            <Route path="/history" element={<HistoryPage />} />
+          </Routes>
+        )}
       </Layout>
     </BrowserRouter>
   );
