@@ -16,7 +16,7 @@ function TasksPage({ searchTerm }) {
   const [editingDeadlineId, setEditingDeadlineId] = useState(null);
   const [editValue, setEditValue] = useState("");
 
-  // Re-render every minute for countdown update
+  // Re-render every minute
   const [, setNow] = useState(Date.now());
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,11 +41,31 @@ function TasksPage({ searchTerm }) {
     });
   };
 
-  const filteredTasks = tasks.filter((task) =>
-    task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (task.description &&
-      task.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // 🔥 SMART AUTO SORT
+  const filteredTasks = tasks
+    .filter((task) =>
+      task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (task.description &&
+        task.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+    .sort((a, b) => {
+
+      if (a.status === "completed" && b.status !== "completed") return 1;
+      if (b.status === "completed" && a.status !== "completed") return -1;
+
+      if (a.status === "completed" && b.status === "completed") {
+        return new Date(b.completedAt) - new Date(a.completedAt);
+      }
+
+      if (a.deadline && b.deadline) {
+        return new Date(a.deadline) - new Date(b.deadline);
+      }
+
+      if (a.deadline && !b.deadline) return -1;
+      if (!a.deadline && b.deadline) return 1;
+
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
 
   return (
     <div className="space-y-6">
@@ -85,7 +105,7 @@ function TasksPage({ searchTerm }) {
             key={task.id}
             className="bg-zinc-900 p-5 rounded-xl border border-zinc-800"
           >
-            <div className="flex items-start gap-3 w-full">
+            <div className="flex items-start gap-3">
 
               {/* Checkbox */}
               <button
@@ -161,7 +181,7 @@ function TasksPage({ searchTerm }) {
                   )
                 )}
 
-                {/* DEADLINE (NO UTC CONVERSION) */}
+                {/* DEADLINE */}
                 {editingDeadlineId === task.id ? (
                   <input
                     type="datetime-local"
@@ -172,7 +192,7 @@ function TasksPage({ searchTerm }) {
                       updateTask(task.id, { deadline: editValue });
                       setEditingDeadlineId(null);
                     }}
-                    className="bg-transparent outline-none"
+                    className="bg-transparent outline-none text-sm"
                   />
                 ) : (
                   countdownText && (
@@ -181,7 +201,7 @@ function TasksPage({ searchTerm }) {
                         setEditingDeadlineId(task.id);
                         setEditValue(task.deadline);
                       }}
-                      className={`text-sm ${countdownColor} cursor-pointer mt-1 block`}
+                      className={`text-sm ${countdownColor} cursor-pointer mt-1`}
                     >
                       {countdownText}
                     </div>
@@ -206,7 +226,7 @@ function TasksPage({ searchTerm }) {
       {/* Floating Add Button */}
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-6 right-6 w-12 h-12 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center"
+        className="fixed bottom-6 right-6 w-12 h-12 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center hover:bg-zinc-800 transition"
       >
         <Plus size={20} className="text-zinc-300" />
       </button>
