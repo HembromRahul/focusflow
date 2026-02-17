@@ -11,8 +11,10 @@ function TasksPage({ searchTerm }) {
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
 
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({});
+  const [editingTitleId, setEditingTitleId] = useState(null);
+  const [editingDescId, setEditingDescId] = useState(null);
+  const [editingDeadlineId, setEditingDeadlineId] = useState(null);
+  const [editValue, setEditValue] = useState("");
 
   const handleAdd = () => {
     if (!title.trim()) return;
@@ -41,10 +43,11 @@ function TasksPage({ searchTerm }) {
 
       {filteredTasks.map((task) => {
 
-        let countdownText = "";
-        let titleColor = "text-zinc-200";
+        const isCompleted = task.status === "completed";
 
-        if (task.deadline && task.status !== "completed") {
+        let countdownText = "";
+
+        if (task.deadline && !isCompleted) {
           const { status, hours, minutes } =
             getTimeRemaining(task.deadline);
 
@@ -52,11 +55,7 @@ function TasksPage({ searchTerm }) {
             status === "overdue"
               ? `Overdue by ${hours}h ${minutes}m`
               : `Due in ${hours}h ${minutes}m`;
-
-          if (status === "overdue") titleColor = "text-red-500";
         }
-
-        const isEditing = editingId === task.id;
 
         return (
           <div
@@ -70,12 +69,12 @@ function TasksPage({ searchTerm }) {
               <button
                 onClick={() => toggleComplete(task)}
                 className={`mt-1 w-5 h-5 rounded border flex items-center justify-center ${
-                  task.status === "completed"
+                  isCompleted
                     ? "bg-green-500 border-green-500"
                     : "border-zinc-600"
                 }`}
               >
-                {task.status === "completed" && (
+                {isCompleted && (
                   <Check size={14} className="text-black" />
                 )}
               </button>
@@ -83,47 +82,42 @@ function TasksPage({ searchTerm }) {
               <div className="flex-1 space-y-1">
 
                 {/* TITLE */}
-                {isEditing ? (
+                {editingTitleId === task.id ? (
                   <input
-                    value={editData.title}
                     autoFocus
-                    onChange={(e) =>
-                      setEditData({
-                        ...editData,
-                        title: e.target.value,
-                      })
-                    }
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
                     onBlur={() => {
-                      updateTask(task.id, editData);
-                      setEditingId(null);
+                      updateTask(task.id, { title: editValue });
+                      setEditingTitleId(null);
                     }}
-                    className="w-full bg-transparent text-zinc-200 text-lg font-semibold outline-none"
+                    className="w-full bg-transparent outline-none text-lg font-semibold"
                   />
                 ) : (
                   <div
                     onClick={() => {
-                      setEditingId(task.id);
-                      setEditData(task);
+                      setEditingTitleId(task.id);
+                      setEditValue(task.title);
                     }}
-                    className={`text-lg font-semibold cursor-pointer ${titleColor}`}
+                    className={`text-lg font-semibold cursor-pointer ${
+                      isCompleted
+                        ? "line-through text-zinc-500"
+                        : "text-zinc-200"
+                    }`}
                   >
                     {task.title}
                   </div>
                 )}
 
                 {/* DESCRIPTION */}
-                {isEditing ? (
+                {editingDescId === task.id ? (
                   <textarea
-                    value={editData.description || ""}
-                    onChange={(e) =>
-                      setEditData({
-                        ...editData,
-                        description: e.target.value,
-                      })
-                    }
+                    autoFocus
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
                     onBlur={() => {
-                      updateTask(task.id, editData);
-                      setEditingId(null);
+                      updateTask(task.id, { description: editValue });
+                      setEditingDescId(null);
                     }}
                     className="w-full bg-transparent text-zinc-400 outline-none resize-none"
                   />
@@ -131,10 +125,14 @@ function TasksPage({ searchTerm }) {
                   task.description && (
                     <div
                       onClick={() => {
-                        setEditingId(task.id);
-                        setEditData(task);
+                        setEditingDescId(task.id);
+                        setEditValue(task.description);
                       }}
-                      className="text-zinc-400 cursor-text"
+                      className={`cursor-text ${
+                        isCompleted
+                          ? "line-through text-zinc-600"
+                          : "text-zinc-400"
+                      }`}
                     >
                       {task.description}
                     </div>
@@ -142,31 +140,33 @@ function TasksPage({ searchTerm }) {
                 )}
 
                 {/* DEADLINE */}
-                {isEditing ? (
+                {editingDeadlineId === task.id ? (
                   <input
                     type="datetime-local"
+                    autoFocus
                     value={
-                      editData.deadline
-                        ? new Date(editData.deadline)
+                      editValue
+                        ? new Date(editValue)
                             .toISOString()
                             .slice(0, 16)
                         : ""
                     }
-                    onChange={(e) =>
-                      setEditData({
-                        ...editData,
-                        deadline: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setEditValue(e.target.value)}
                     onBlur={() => {
-                      updateTask(task.id, editData);
-                      setEditingId(null);
+                      updateTask(task.id, { deadline: editValue });
+                      setEditingDeadlineId(null);
                     }}
                     className="bg-transparent text-zinc-400 outline-none"
                   />
                 ) : (
                   countdownText && (
-                    <div className="text-sm text-zinc-500">
+                    <div
+                      onClick={() => {
+                        setEditingDeadlineId(task.id);
+                        setEditValue(task.deadline);
+                      }}
+                      className="text-sm text-zinc-500 cursor-pointer"
+                    >
                       {countdownText}
                     </div>
                   )
@@ -190,12 +190,12 @@ function TasksPage({ searchTerm }) {
       {/* Floating Add Button */}
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-6 right-6 w-12 h-12 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center shadow-lg hover:bg-zinc-800 transition"
+        className="fixed bottom-6 right-6 w-12 h-12 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center"
       >
         <Plus size={20} className="text-zinc-300" />
       </button>
 
-      {/* Modal */}
+      {/* Add Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center">
           <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-md space-y-4 border border-zinc-800">
