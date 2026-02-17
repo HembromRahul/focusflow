@@ -4,12 +4,12 @@ function Topbar({
   setSearchTerm,
 }) {
   return (
-    <div className="w-full bg-zinc-950 h-16 flex items-center px-4">
+    <div className="w-full bg-zinc-950 h-16 flex items-center px-4 border-b border-zinc-800">
 
       {/* Hamburger */}
       <button
         onClick={() => setSidebarOpen(true)}
-        className="text-zinc-200 text-2xl mr-4 flex-shrink-0"
+        className="text-zinc-200 text-2xl mr-4"
       >
         ☰
       </button>

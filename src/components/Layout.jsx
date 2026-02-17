@@ -10,7 +10,7 @@ function Layout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200 relative">
+    <div className="min-h-screen bg-zinc-950 text-zinc-200">
 
       {/* Topbar */}
       <Topbar
@@ -54,6 +54,14 @@ function Layout({
               className="block text-zinc-400 hover:text-white transition"
             >
               History
+            </Link>
+
+            <Link
+              to="/settings"
+              onClick={() => setSidebarOpen(false)}
+              className="block text-zinc-400 hover:text-white transition"
+            >
+              Settings
             </Link>
           </nav>
 

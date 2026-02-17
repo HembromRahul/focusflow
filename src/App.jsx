@@ -19,6 +19,14 @@ function App() {
             element={<TasksPage searchTerm={searchTerm} />}
           />
           <Route path="/history" element={<HistoryPage />} />
+          <Route
+            path="/settings"
+            element={
+              <div className="p-6 text-zinc-300">
+                Settings coming soon.
+              </div>
+            }
+          />
         </Routes>
       </Layout>
     </BrowserRouter>
